@@ -8,7 +8,7 @@ FROM debian:buster-slim
 ARG IDF_VERSION="v4.0"
 
 # llvm-xtensa (xtensa_release_9.0.1)
-ARG LLVM_VERSION="654ba115e55638acc60a8dacf8b1b8d8468cc4f4"
+ARG LLVM_VERSION="33d79cce656c8c85c38832c8f52810875a3fbddf"
 
 # rust-xtensa
 ARG RUSTC_VERSION="672b35ef0d38d3cd3b0d77eb15e5e58d9f4efec6"
