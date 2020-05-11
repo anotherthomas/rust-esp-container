@@ -1,4 +1,4 @@
-FROM debian:buster-slim
+FROM debian:buster-slim as esp-idf
 
 # -------------------------------------------------------------------
 # Toolchain Version Config
@@ -6,12 +6,6 @@ FROM debian:buster-slim
 
 # esp-idf framework
 ARG IDF_VERSION="v4.0"
-
-# llvm-xtensa (xtensa_release_9.0.1)
-ARG LLVM_VERSION="33d79cce656c8c85c38832c8f52810875a3fbddf"
-
-# rust-xtensa
-ARG RUSTC_VERSION="672b35ef0d38d3cd3b0d77eb15e5e58d9f4efec6"
 
 # -------------------------------------------------------------------
 # Toolchain Path Config
@@ -21,17 +15,6 @@ ARG TOOLCHAIN="/home/esp32-toolchain"
 
 ARG ESP_BASE="${TOOLCHAIN}/esp"
 ENV IDF_PATH "${ESP_BASE}/esp-idf"
-
-ARG LLVM_BASE="${TOOLCHAIN}/llvm"
-ARG LLVM_PATH="${LLVM_BASE}/llvm_xtensa"
-ARG LLVM_BUILD_PATH="${LLVM_BASE}/llvm_build"
-ARG LLVM_INSTALL_PATH="${LLVM_BASE}/llvm_install"
-
-ARG RUSTC_BASE="${TOOLCHAIN}/rustc"
-ARG RUSTC_PATH="${RUSTC_BASE}/rust_xtensa"
-ARG RUSTC_BUILD_PATH="${RUSTC_BASE}/rust_build"
-
-ENV PATH "/root/.cargo/bin:${PATH}"
 
 # -------------------------------------------------------------------
 # Install expected depdendencies
@@ -66,13 +49,24 @@ RUN apt-get update \
 WORKDIR "${ESP_BASE}"
 RUN  git clone \
        --recursive --single-branch -b "${IDF_VERSION}" \
-       https://github.com/espressif/esp-idf.git \
- && cd ${IDF_PATH} \
+       https://github.com/espressif/esp-idf.git
+RUN cd ${IDF_PATH} \
  && ./install.sh
 
 # -------------------------------------------------------------------
 # Build llvm-xtensa
 # -------------------------------------------------------------------
+
+FROM esp-idf as esp-llvm
+
+ARG TOOLCHAIN="/home/esp32-toolchain"
+ARG LLVM_BASE="${TOOLCHAIN}/llvm"
+ARG LLVM_PATH="${LLVM_BASE}/llvm_xtensa"
+ARG LLVM_BUILD_PATH="${LLVM_BASE}/llvm_build"
+ARG LLVM_INSTALL_PATH="${LLVM_BASE}/llvm_install"
+
+# llvm-xtensa (xtensa_release_9.0.1)
+ARG LLVM_VERSION="33d79cce656c8c85c38832c8f52810875a3fbddf"
 
 WORKDIR "${LLVM_BASE}"
 RUN mkdir "${LLVM_PATH}" \
@@ -101,12 +95,26 @@ RUN mkdir "${LLVM_PATH}" \
 # Build rust-xtensa
 # -------------------------------------------------------------------
 
+FROM esp-llvm as esp-rust
+
+ARG TOOLCHAIN="/home/esp32-toolchain"
+ARG RUSTC_BASE="${TOOLCHAIN}/rustc"
+ARG RUSTC_PATH="${RUSTC_BASE}/rust_xtensa"
+ARG RUSTC_BUILD_PATH="${RUSTC_BASE}/rust_build"
+ARG LLVM_BASE="${TOOLCHAIN}/llvm"
+ARG LLVM_INSTALL_PATH="${LLVM_BASE}/llvm_install"
+
+# rust-xtensa
+ARG RUSTC_VERSION="672b35ef0d38d3cd3b0d77eb15e5e58d9f4efec6"
+
+ENV PATH "/root/.cargo/bin:${PATH}"
+
 WORKDIR "${RUSTC_BASE}"
 RUN git clone \
         --recursive --single-branch \
         https://github.com/MabezDev/rust-xtensa.git \
-        "${RUSTC_PATH}" \
- && mkdir -p "${RUSTC_BUILD_PATH}" \
+        "${RUSTC_PATH}"
+RUN mkdir -p "${RUSTC_BUILD_PATH}" \
  && cd "${RUSTC_PATH}" \
  && git reset --hard "${RUSTC_VERSION}" \
  && ./configure \
@@ -136,6 +144,9 @@ RUN curl \
 
 ENV PROJECT="/home/project/"
 
+ARG TOOLCHAIN="/home/esp32-toolchain"
+ARG RUSTC_PATH="${RUSTC_BASE}/rust_xtensa"
+ARG LLVM_INSTALL_PATH="${LLVM_BASE}/llvm_install"
 ENV XARGO_RUST_SRC="${RUSTC_PATH}/src"
 ENV TEMPLATES="${TOOLCHAIN}/templates"
 ENV LIBCLANG_PATH="${LLVM_INSTALL_PATH}/lib"
